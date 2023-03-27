@@ -1,0 +1,3 @@
+[submodule "OpenGL-Beef"]
+	path = OpenGL-Beef
+	url = https://github.com/jayrulez/OpenGL-Beef.git
