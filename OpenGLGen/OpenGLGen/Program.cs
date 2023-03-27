@@ -30,8 +30,7 @@ namespace OpenGLGen
             using (var writer = new StreamWriter((Path.Combine(workingDirectory.FullName, "Enums.bf"))))
             {
                 writer.WriteLine("using System;\n");
-                writer.WriteLine(namespaceText);
-                writer.WriteLine("{");
+                writer.WriteLine($"{namespaceText};");
 
                 int count = 0;
                 foreach (var groupElem in version.Groups)
@@ -42,32 +41,29 @@ namespace OpenGLGen
                         writer.WriteLine();
                     }
 
-                    writer.WriteLine($"\t[AllowDuplicates]");
-                    writer.WriteLine($"\tpublic enum {groupElem.Name} : uint");
-                    writer.WriteLine("\t{");
+                    writer.WriteLine($"[AllowDuplicates]");
+                    writer.WriteLine($"public enum {groupElem.Name} : uint32");
+                    writer.WriteLine("{");
                     foreach (var enumElem in groupElem.Enums)
                     {
                         if (IsUint(enumElem.Value))
                         {
-                            writer.WriteLine($"\t\t{enumElem.ShortName} = {enumElem.Value},");
+                            writer.WriteLine($"\t{enumElem.ShortName} = {enumElem.Value},");
                         }
                     }
-                    writer.WriteLine("\t}");
+                    writer.WriteLine("}");
                 }
-
-                writer.WriteLine("}");
             }
 
             // Write Commands
             using (var writer = new StreamWriter((Path.Combine(workingDirectory.FullName, $"{nativeClassText}.bf"))))
             {
                 writer.WriteLine("using System;");
-                writer.WriteLine(namespaceText);
+                writer.WriteLine($"{namespaceText};");
+                writer.WriteLine($"extension {nativeClassText}");
                 writer.WriteLine("{");
-                writer.WriteLine($"\textension {nativeClassText}");
-                writer.WriteLine("\t{");
-                writer.WriteLine("\t\tprivate static function void*(StringView) s_getProcAddress;\n");
-                writer.WriteLine("\t\tprivate const CallingConventionAttribute.Kind CallConv = .Stdcall;");
+                writer.WriteLine("\tprivate static function void*(StringView) s_getProcAddress;\n");
+                writer.WriteLine("\tprivate const CallingConventionAttribute.Kind CallConv = .Stdcall;");
 
                 // Prototypes
                 foreach (var command in version.Commands)
@@ -75,7 +71,7 @@ namespace OpenGLGen
                     writer.WriteLine();
 
                     // Delegate
-                    StringBuilder delegateCommand = new StringBuilder($"\t\tprivate typealias {command.Name}_t = function ");
+                    StringBuilder delegateCommand = new StringBuilder($"\tprivate typealias {command.Name}_t = function ");
                     BuildReturnType(version, command, delegateCommand);
                     delegateCommand.Append($"(");
                     BuildParameterList(version, command, delegateCommand);
@@ -83,12 +79,12 @@ namespace OpenGLGen
                     writer.WriteLine(delegateCommand.ToString());
 
                     // internal function
-                    writer.WriteLine($"\t\tprivate static {command.Name}_t p_{command.Name};");
+                    writer.WriteLine($"\tprivate static {command.Name}_t p_{command.Name};");
 
 
-                    writer.WriteLine("\t\t[CallingConvention(GL.CallConv)]");
+                    writer.WriteLine("\t[CallingConvention(GL.CallConv)]");
                     // public function
-                    StringBuilder function = new StringBuilder($"\t\tpublic static ");
+                    StringBuilder function = new StringBuilder($"\tpublic static ");
                     BuildReturnType(version, command, function);
                     function.Append($" {command.Name}(");
                     BuildParameterList(version, command, function);
@@ -99,36 +95,35 @@ namespace OpenGLGen
                 }
 
                 // Helper functions
-                writer.WriteLine("\n\t\tpublic static void LoadGetString(function void*(StringView) getProcAddress)");
-                writer.WriteLine("\t\t{");
-                writer.WriteLine("\t\t\ts_getProcAddress = getProcAddress;");
-                writer.WriteLine("\t\t\tLoadFunction(\"glGetString\", out p_glGetString);");
-                writer.WriteLine("\t\t}");
+                writer.WriteLine("\n\tpublic static void LoadGetString(function void*(StringView) getProcAddress)");
+                writer.WriteLine("\t{");
+                writer.WriteLine("\t\ts_getProcAddress = getProcAddress;");
+                writer.WriteLine("\t\tLoadFunction(\"glGetString\", out p_glGetString);");
+                writer.WriteLine("\t}");
 
-                writer.WriteLine("\n\t\tpublic static void LoadAllFunctions(function void*(StringView) getProcAddress)");
-                writer.WriteLine("\t\t{");
-                writer.WriteLine("\t\t\ts_getProcAddress = getProcAddress;\n");
+                writer.WriteLine("\n\tpublic static void LoadAllFunctions(function void*(StringView) getProcAddress)");
+                writer.WriteLine("\t{");
+                writer.WriteLine("\t\ts_getProcAddress = getProcAddress;\n");
 
                 foreach (var command in version.Commands)
                 {
-                    writer.WriteLine($"\t\t\tLoadFunction(\"{command.Name}\", out p_{command.Name});");
+                    writer.WriteLine($"\t\tLoadFunction(\"{command.Name}\", out p_{command.Name});");
                 }
-                writer.WriteLine("\t\t}\n");
+                writer.WriteLine("\t}\n");
 
-                writer.WriteLine("\t\tprivate static void LoadFunction<T>(StringView name, out T field)");
+                writer.WriteLine("\tprivate static void LoadFunction<T>(StringView name, out T field)");
+                writer.WriteLine("\t{");
+                writer.WriteLine("\t\tvoid* funcPtr = s_getProcAddress(name);");
+                writer.WriteLine("\t\tif (funcPtr != null)");
                 writer.WriteLine("\t\t{");
-                writer.WriteLine("\t\t\tvoid* funcPtr = s_getProcAddress(name);");
-                writer.WriteLine("\t\t\tif (funcPtr != null)");
-                writer.WriteLine("\t\t\t{");
-                writer.WriteLine("\t\t\t\tfield = *(T*)funcPtr;");
-                writer.WriteLine("\t\t\t}");
-                writer.WriteLine("\t\t\telse");
-                writer.WriteLine("\t\t\t{");
-                writer.WriteLine("\t\t\t\tfield = default(T);");
-                writer.WriteLine("\t\t\t}");
+                writer.WriteLine("\t\t\tfield = *(T*)(void*)&funcPtr;");
                 writer.WriteLine("\t\t}");
-
+                writer.WriteLine("\t\telse");
+                writer.WriteLine("\t\t{");
+                writer.WriteLine("\t\t\tfield = default(T);");
+                writer.WriteLine("\t\t}");
                 writer.WriteLine("\t}");
+
                 writer.WriteLine("}");
             }
         }
@@ -170,7 +165,7 @@ namespace OpenGLGen
                 // For GLenums that don't appear in the gl.xml file.
                 if (!groupExists)
                 {
-                    groupName = "uint";
+                    groupName = "uint32";
                 }
 
                 builder.Append($"{groupName}");
@@ -190,7 +185,7 @@ namespace OpenGLGen
                     var name = p.Name;
 
                     // Add @ to start of any names that are C# keywords to avoid conflict
-                    if (name == "params" || name == "string" || name == "ref" || name == "base")
+                    if (name == "params" || name == "string" || name == "ref" || name == "base" || name == "box")
                     {
                         name = "@" + name;
                     }
@@ -204,7 +199,7 @@ namespace OpenGLGen
                         // For GLenums that don't appear in the gl.xml file.
                         if (!groupExists)
                         {
-                            groupName = "uint";
+                            groupName = "uint32";
                         }
 
                         builder.Append($"{groupName} {name}, ");
@@ -227,7 +222,7 @@ namespace OpenGLGen
                     var name = p.Name;
 
                     // Add @ to start of any names that are C# keywords to avoid conflict
-                    if (name == "params" || name == "string" || name == "ref" || name == "base")
+                    if (name == "params" || name == "string" || name == "ref" || name == "base" || name == "box")
                     {
                         name = "@" + name;
                     }
@@ -244,11 +239,13 @@ namespace OpenGLGen
             {
                 case "GLboolean":
                     return "bool";
+
                 case "GLenum":
                 case "GLuint":
                 case "GLbitfield":
                 case "GLhandleARB":
-                    return "uint";
+                    return "uint32";
+
                 case "GLint":
                 case "GLsizei":
                 case "GLsizeiptr":
@@ -256,74 +253,95 @@ namespace OpenGLGen
                 case "GLclampx":
                 case "GLintptrARB":
                 case "GLsizeiptrARB":
-                    return "int";
+                    return "int32";
+
                 case "GLuint *":
                 case "const GLuint *":
                 case "GLenum *":
                 case "const GLenum *":
-                    return "uint*";
+                    return "uint32*";
+
                 case "GLdouble *":
                 case "const GLdouble *":
                     return "double*";
+
                 case "GLfloat *":
                 case "const GLfloat *":
                     return "float*";
+
                 case "GLint *":
                 case "const GLint *":
                 case "GLsizei *":
                 case "const GLsizei *":
                 case "GLsizeiptr *":
                 case "const GLsizeiptr *":
-                    return "int*";
+                    return "int32*";
+
                 case "GLushort *":
                 case "const GLushort *":
                 case "GLshort *":
                 case "const GLshort *":
-                    return "short*";
+                    return "int16*";
+
                 case "GLboolean *":
                 case "const GLboolean *":
                     return "bool*";
+
                 case "GLchar *":
                 case "const GLchar *":
-                    return "char*";
+                    return "char8*";
+
                 case "GLint64 *":
                 case "const GLint64 *":
-                    return "long*";
+                    return "int64*";
+
                 case "GLuint64 *":
                 case "const GLuint64 *":
-                    return "ulong*";
+                    return "uint64*";
+
                 case "GLubyte *":
                 case "const GLubyte *":
                 case "GLbyte *":
                 case "const GLbyte *":
-                    return "byte*";
+                    return "uint8*";
+
                 case "void *":
                 case "const void *":
                     return "void*";
+
                 case "void **":
                 case "const void **":
                     return "void**";
+
                 case "GLfloat":
                 case "GLclampf":
                     return "float";
+
                 case "GLclampd":
                 case "GLdouble":
                     return "double";
+
                 case "GLubyte":
-                    return "byte";
+                    return "uint8";
+
                 case "GLbyte":
-                    return "sbyte";
+                    return "int8";
+
                 case "GLhalfNV": 
                 case "GLushort":
-                    return "ushort";
+                    return "uint16";
+
                 case "GLshort":
-                    return "short";
+                    return "int16";
+
                 case "GLint64":
                 case "GLint64EXT":
-                    return "long";
+                    return "int64";
+
                 case "GLuint64":
                 case "GLuint64EXT":
-                    return "ulong";
+                    return "uint64";
+
                 case "GLsync":
                 case "GLintptr":
                 case "GLDEBUGPROC":
@@ -334,12 +352,12 @@ namespace OpenGLGen
                 case "GLDEBUGPROCKHR":
                 case "GLDEBUGPROCAMD":
                 case "GLDEBUGPROCARB":
-                    return "IntPtr";
+                    return "void*";
             }
     
             if (type.Contains("*"))
             {
-                return "IntPtr";
+                return "void*";
             }
 
             return type;
